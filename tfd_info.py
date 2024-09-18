@@ -170,7 +170,7 @@ async def weapons(ctx, username):
                             module_details = next((item for item in module_metadata if item['module_id'] == module_id), None)
                             
                             if module_details:
-                                message += f"  Module: {module_details['module_name']} (Level: {module_level})\n"
+                                message += f"  {module_details['module_name']} (Level: {module_level})\n"
                         
                         message += "\n"
                 
