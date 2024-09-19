@@ -3,6 +3,7 @@ from discord.ext import commands
 import aiohttp
 import os
 from dotenv import load_dotenv
+import math
 
 load_dotenv()
 
@@ -20,7 +21,8 @@ HEADERS = {
 }
 
 USERNAME_ALIASES = {
-    'USERNAME': 'username#5103'
+    'SOAD': 'SOAD__#5203',
+    'BlankGeneration': 'BlankGeneration#1623'
 }
 
 async def get_metadata(endpoint):
@@ -78,52 +80,88 @@ async def get_weapon_info(ouid):
 async def descendant(ctx, username):
     full_username = USERNAME_ALIASES.get(username, username)
     ouid_response = await get_ouid(full_username)
-    
+
     if ouid_response:
         ouid = ouid_response.get('ouid')
         if ouid:
             descendant_info = await get_descendant_info(ouid)
             descendant_metadata = await get_descendant_metadata()
             module_metadata = await get_module_metadata()
-            
+
             if descendant_info and descendant_metadata and module_metadata:
                 # Constructing the output message
                 message = f"**Equipped Descendant for {full_username}**\n"
-                
+
                 # Descendant info
                 descendant_name = next((item['descendant_name'] for item in descendant_metadata if item['descendant_id'] == descendant_info.get('descendant_id')), 'Unknown')
                 descendant_level = descendant_info.get('descendant_level', 'N/A')
-                image_url = descendant_info.get('descendant_image_url', 'No Image')
-                message += f"   {descendant_name} ({descendant_level})\n"
-                message += "\n"
+                message += f"   {descendant_name} ({descendant_level})\n\n"
 
-                
                 # Modules
                 message += f"**Descendant Modules:**\n"
+                applied_module_stats = {}
+
                 for module in descendant_info.get('module', []):
                     module_id = module.get('module_id')
                     module_level = module.get('module_enchant_level')
                     module_details = next((item for item in module_metadata if item['module_id'] == module_id), None)
-                    
+
                     if module_details:
                         module_name = module_details.get('module_name', 'Unknown Module')
                         socket_type = module_details.get('module_socket_type', 'N/A')
-                        # Use only the first letter of the socket type
                         socket_type_initial = socket_type[0] if socket_type != 'N/A' else 'N/A'
                         message += f"   {module_name} ({module_level})({socket_type_initial})\n"
-                
+
+                        # Parsing module stats
+                        module_stats = module_details.get('module_stat', [])
+                        for stat in module_stats:
+                            if stat['level'] == module_level:
+                                stat_values = stat['value'].split(", ")
+                                for stat_value in stat_values:
+                                    # Handle stat name and amount separately
+                                    parts = stat_value.rsplit(" ", 1)
+                                    
+                                    # If we can't split into two parts, skip this stat
+                                    if len(parts) != 2:
+                                        continue
+                                    
+                                    stat_name = parts[0]
+                                    stat_amount = parts[1].replace('%', '')
+
+                                    # Try converting stat_amount to float, skip if not possible
+                                    try:
+                                        stat_amount = float(stat_amount)
+                                        # Round down to one decimal place
+                                        stat_amount = math.floor(stat_amount * 10) / 10
+                                    except ValueError:
+                                        continue
+
+                                    if stat_name in applied_module_stats:
+                                        applied_module_stats[stat_name] += stat_amount
+                                    else:
+                                        applied_module_stats[stat_name] = stat_amount
+
+                # Applied Module Stats
+                message += f"\n**Applied Module Stats:**\n"
+                for stat_name, stat_value in applied_module_stats.items():
+                    # Add '+' sign to positive values
+                    stat_sign = "+" if stat_value > 0 else ""
+                    # Round the value to one decimal place
+                    rounded_value = math.floor(stat_value * 10) / 10
+                    message += f"  {stat_name}: {stat_sign}{rounded_value}%\n"
+
                 # Sending the message
                 max_length = 2000
                 for i in range(0, len(message), max_length):
                     await ctx.send(message[i:i + max_length])
-                
+
             else:
                 await ctx.send(f"Could not find descendant information for player '{full_username}'.")
         else:
             await ctx.send(f"Could not find OUID for player '{full_username}'.")
     else:
         await ctx.send(f"Could not retrieve OUID for player '{full_username}'.")
-
+        
 @bot.command()
 async def weapons(ctx, username):
     full_username = USERNAME_ALIASES.get(username, username)
