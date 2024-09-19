@@ -21,8 +21,7 @@ HEADERS = {
 }
 
 USERNAME_ALIASES = {
-    'SOAD': 'SOAD__#5203',
-    'BlankGeneration': 'BlankGeneration#1623'
+    'USERNAME': 'username#5213'
 }
 
 async def get_metadata(endpoint):
