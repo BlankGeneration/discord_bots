@@ -21,7 +21,7 @@ HEADERS = {
 }
 
 USERNAME_ALIASES = {
-    'USERNAME': 'username#5213'
+    'USERNAME': 'username#5203'
 }
 
 async def get_metadata(endpoint):
@@ -42,6 +42,9 @@ async def get_module_metadata():
 
 async def get_descendant_metadata():
     return await get_metadata("/static/tfd/meta/en/descendant.json")
+
+async def get_reactor_metadata():
+    return await get_metadata("/static/tfd/meta/en/reactor.json")
 
 async def get_ouid(username):
     url = f"{BASE_URL}/tfd/v1/id?user_name={username.replace('#', '%23')}"
@@ -75,6 +78,17 @@ async def get_weapon_info(ouid):
                 print(f"Failed to fetch weapon info. Status code: {response.status}, URL: {url}")
     return None
 
+async def get_reactor_info(ouid):
+    url = f"{BASE_URL}/tfd/v1/user/reactor"
+    params = {"language_code": "en", "ouid": ouid}
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=HEADERS, params=params) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                print(f"Failed to fetch weapon info. Status code: {response.status}, URL: {url}")
+    return None
+
 @bot.command()
 async def descendant(ctx, username):
     full_username = USERNAME_ALIASES.get(username, username)
@@ -86,8 +100,10 @@ async def descendant(ctx, username):
             descendant_info = await get_descendant_info(ouid)
             descendant_metadata = await get_descendant_metadata()
             module_metadata = await get_module_metadata()
+            reactor_info = await get_reactor_info(ouid)
+            reactor_metadata = await get_reactor_metadata()
 
-            if descendant_info and descendant_metadata and module_metadata:
+            if descendant_info and descendant_metadata and module_metadata and reactor_info and reactor_metadata:
                 # Constructing the output message
                 message = f"**Equipped Descendant for {full_username}**\n"
 
@@ -130,8 +146,6 @@ async def descendant(ctx, username):
                                     # Try converting stat_amount to float, skip if not possible
                                     try:
                                         stat_amount = float(stat_amount)
-                                        # Round down to one decimal place
-                                        stat_amount = math.floor(stat_amount * 10) / 10
                                     except ValueError:
                                         continue
 
@@ -143,11 +157,36 @@ async def descendant(ctx, username):
                 # Applied Module Stats
                 message += f"\n**Applied Module Stats:**\n"
                 for stat_name, stat_value in applied_module_stats.items():
-                    # Add '+' sign to positive values
+                    # Add '+' sign to positive values and round down to one decimal place
                     stat_sign = "+" if stat_value > 0 else ""
-                    # Round the value to one decimal place
-                    rounded_value = math.floor(stat_value * 10) / 10
-                    message += f"  {stat_name}: {stat_sign}{rounded_value}%\n"
+                    stat_value = math.floor(stat_value * 10) / 10  # Rounding down to one decimal place
+                    message += f"  {stat_name}: {stat_sign}{stat_value}%\n"
+
+                # Reactor Information
+                reactor_id = reactor_info.get('reactor_id')
+                reactor_details = next((item for item in reactor_metadata if item['reactor_id'] == reactor_id), None)
+
+                if reactor_details:
+                    reactor_name = reactor_details.get('reactor_name', 'Unknown Reactor')
+                    optimized_condition_type = reactor_details.get('optimized_condition_type', 'N/A')
+
+                    message += f"\n**Reactor Information:**\n"
+                    message += f"  {reactor_name}\n"
+                    message += f"  Optimized Condition Type: {optimized_condition_type}\n"
+
+                    # Reactor additional stats
+                    for stat in reactor_info.get('reactor_additional_stat', []):
+                        stat_name = stat.get('additional_stat_name', 'Unknown Stat')
+                        stat_value = stat.get('additional_stat_value', '0.0')
+
+                        try:
+                            stat_value = float(stat_value)
+                            stat_value = math.floor(stat_value * 1000) / 1000  # Rounding down to three decimal places
+                        except ValueError:
+                            continue
+
+                        stat_sign = "+" if stat_value > 0 else ""
+                        message += f"  {stat_name}: {stat_sign}{stat_value:.3f}%\n"
 
                 # Sending the message
                 max_length = 2000
@@ -160,7 +199,7 @@ async def descendant(ctx, username):
             await ctx.send(f"Could not find OUID for player '{full_username}'.")
     else:
         await ctx.send(f"Could not retrieve OUID for player '{full_username}'.")
-        
+
 @bot.command()
 async def weapons(ctx, username):
     full_username = USERNAME_ALIASES.get(username, username)
