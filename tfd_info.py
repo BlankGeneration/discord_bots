@@ -20,7 +20,8 @@ HEADERS = {
 }
 
 USERNAME_ALIASES = {
-    'EXAMPLE': 'example#777'
+    'SOAD': 'SOAD__#5203',
+    'BlankGeneration': 'BlankGeneration#1623'
 }
 
 async def get_metadata(endpoint):
@@ -88,14 +89,15 @@ async def descendant(ctx, username):
             
             if descendant_info and descendant_metadata and module_metadata:
                 # Constructing the output message
-                message = f"**Descendant for {full_username}**\n"
+                message = f"**Equipped Descendant for {full_username}**\n"
                 
                 # Descendant info
                 descendant_name = next((item['descendant_name'] for item in descendant_metadata if item['descendant_id'] == descendant_info.get('descendant_id')), 'Unknown')
                 descendant_level = descendant_info.get('descendant_level', 'N/A')
                 image_url = descendant_info.get('descendant_image_url', 'No Image')
-                message += f"{descendant_name} (Level: {descendant_level})\n"
+                message += f"   {descendant_name} ({descendant_level})\n"
                 message += "\n"
+
                 
                 # Modules
                 message += f"**Descendant Modules:**\n"
@@ -107,9 +109,9 @@ async def descendant(ctx, username):
                     if module_details:
                         module_name = module_details.get('module_name', 'Unknown Module')
                         socket_type = module_details.get('module_socket_type', 'N/A')
-                        message += f"{module_name} (Level: {module_level})\n"
-                        message += f"  Socket Type: {socket_type}\n"
-                        message += "\n"
+                        # Use only the first letter of the socket type
+                        socket_type_initial = socket_type[0] if socket_type != 'N/A' else 'N/A'
+                        message += f"   {module_name} ({module_level})({socket_type_initial})\n"
                 
                 # Sending the message
                 max_length = 2000
@@ -144,7 +146,6 @@ async def weapons(ctx, username):
                     weapon_details = next((item for item in weapon_metadata if item['weapon_id'] == weapon_id), None)
                     
                     if weapon_details:
-                        # Attempt to access 'name' or other fields in weapon_details
                         weapon_name = weapon_details.get('weapon_name', 'Unknown Weapon Name')
                         weapon_type = weapon_details.get('weapon_type', 'N/A')
                         rounds = weapon_details.get('weapon_rounds_type', 'N/A')
@@ -155,6 +156,7 @@ async def weapons(ctx, username):
                         message += f"**Rounds**: {rounds}\n"
                         message += f"**Enchantment Level**: {enchantment_level}\n"
                         message += "\n"
+                        
                         # Additional Stats
                         message += f"**Additional Stats**:\n"
                         for stat in weapon.get('weapon_additional_stat', []):
@@ -168,12 +170,16 @@ async def weapons(ctx, username):
                             module_id = module.get('module_id')
                             module_level = module.get('module_enchant_level')
                             module_details = next((item for item in module_metadata if item['module_id'] == module_id), None)
-                            
+
+                            # Ensure the message update is inside the loop for each module
                             if module_details:
-                                message += f"  {module_details['module_name']} (Level: {module_level})\n"
-                        
-                        message += "\n"
-                
+                                socket_type = module_details.get('module_socket_type', 'N/A')
+                                # Use only the first letter of the socket type
+                                socket_type_initial = socket_type[0] if socket_type != 'N/A' else 'N/A'
+                                message += f"   {module_details['module_name']} ({module_level})({socket_type_initial})\n"
+
+                        message += "\n"        
+                                        
                 # Sending the message
                 max_length = 2000
                 for i in range(0, len(message), max_length):
