@@ -46,6 +46,9 @@ async def get_descendant_metadata():
 async def get_reactor_metadata():
     return await get_metadata("/static/tfd/meta/en/reactor.json")
 
+async def get_external_component_metadata():
+    return await get_metadata("/static/tfd/meta/en/external-component.json")
+
 async def get_ouid(username):
     url = f"{BASE_URL}/tfd/v1/id?user_name={username.replace('#', '%23')}"
     async with aiohttp.ClientSession() as session:
@@ -89,6 +92,17 @@ async def get_reactor_info(ouid):
                 print(f"Failed to fetch weapon info. Status code: {response.status}, URL: {url}")
     return None
 
+async def get_external_component_info(ouid):
+    url = f"{BASE_URL}/tfd/v1/user/external-component"
+    params = {"language_code": "en", "ouid": ouid}
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=HEADERS, params=params) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                print(f"Failed to fetch weapon info. Status code: {response.status}, URL: {url}")
+    return None
+
 @bot.command()
 async def descendant(ctx, username):
     full_username = USERNAME_ALIASES.get(username, username)
@@ -102,8 +116,10 @@ async def descendant(ctx, username):
             module_metadata = await get_module_metadata()
             reactor_info = await get_reactor_info(ouid)
             reactor_metadata = await get_reactor_metadata()
+            external_component_info = await get_external_component_info(ouid)
+            external_component_metadata = await get_external_component_metadata()
 
-            if descendant_info and descendant_metadata and module_metadata and reactor_info and reactor_metadata:
+            if all([descendant_info, descendant_metadata, module_metadata, reactor_info, reactor_metadata, external_component_info, external_component_metadata]):
                 # Constructing the output message
                 message = f"**Equipped Descendant for {full_username}**\n"
 
@@ -133,17 +149,12 @@ async def descendant(ctx, username):
                             if stat['level'] == module_level:
                                 stat_values = stat['value'].split(", ")
                                 for stat_value in stat_values:
-                                    # Handle stat name and amount separately
                                     parts = stat_value.rsplit(" ", 1)
-                                    
-                                    # If we can't split into two parts, skip this stat
                                     if len(parts) != 2:
                                         continue
-                                    
                                     stat_name = parts[0]
                                     stat_amount = parts[1].replace('%', '')
 
-                                    # Try converting stat_amount to float, skip if not possible
                                     try:
                                         stat_amount = float(stat_amount)
                                     except ValueError:
@@ -157,7 +168,6 @@ async def descendant(ctx, username):
                 # Applied Module Stats
                 message += f"\n**Applied Module Stats:**\n"
                 for stat_name, stat_value in applied_module_stats.items():
-                    # Add '+' sign to positive values and round down to one decimal place
                     stat_sign = "+" if stat_value > 0 else ""
                     stat_value = math.floor(stat_value * 10) / 10  # Rounding down to one decimal place
                     message += f"  {stat_name}: {stat_sign}{stat_value}%\n"
@@ -182,11 +192,38 @@ async def descendant(ctx, username):
                         try:
                             stat_value = float(stat_value)
                             stat_value = math.floor(stat_value * 1000) / 1000  # Rounding down to three decimal places
+                            # If value has .000, display as an integer
+                            if stat_value.is_integer():
+                                stat_value = int(stat_value)
                         except ValueError:
                             continue
 
                         stat_sign = "+" if stat_value > 0 else ""
-                        message += f"  {stat_name}: {stat_sign}{stat_value:.3f}%\n"
+                        message += f"  {stat_name}: {stat_sign}{stat_value}\n"
+
+                # External Components
+                message += f"\n**External Components:**\n"
+                for component in external_component_info.get('external_component', []):
+                    component_id = component.get('external_component_id')
+                    component_details = next((item for item in external_component_metadata if item['external_component_id'] == component_id), None)
+
+                    if component_details:
+                        component_name = component_details.get('external_component_name', 'Unknown Component')
+                        message += f"  {component_name}\n"
+
+                        for stat in component.get('external_component_additional_stat', []):
+                            stat_name = stat['additional_stat_name']
+                            stat_value = float(stat['additional_stat_value'])
+
+                            # If the stat_value is an integer after rounding, display without decimals
+                            if stat_value.is_integer():
+                                stat_value = int(stat_value)
+                                message += f"    {stat_name}: {stat_value}\n"
+                            else:
+                                # Keep 3 decimal places for non-integer values
+                                message += f"    {stat_name}: {stat_value:.3f}\n"
+
+                        message += "\n"
 
                 # Sending the message
                 max_length = 2000
@@ -237,7 +274,20 @@ async def weapons(ctx, username):
                         for stat in weapon.get('weapon_additional_stat', []):
                             stat_name = stat.get('additional_stat_name', 'N/A')
                             stat_value = stat.get('additional_stat_value', 'N/A')
-                            message += f"  {stat_name}: {stat_value}\n"
+
+                            # Convert stat_value to float and apply rounding/formatting
+                            try:
+                                stat_value_float = float(stat_value)
+                                # If the value is a whole number, display as an integer
+                                if stat_value_float.is_integer():
+                                    stat_value_display = f"{int(stat_value_float)}"
+                                else:
+                                    # Otherwise, show one decimal place
+                                    stat_value_display = f"{stat_value_float:.1f}"
+                            except ValueError:
+                                stat_value_display = stat_value  # In case parsing fails, leave it as is
+
+                            message += f"  {stat_name}: {stat_value_display}\n"
 
                         # Modules
                         message += f"\n**Modules**:\n"
@@ -246,10 +296,8 @@ async def weapons(ctx, username):
                             module_level = module.get('module_enchant_level')
                             module_details = next((item for item in module_metadata if item['module_id'] == module_id), None)
 
-                            # Ensure the message update is inside the loop for each module
                             if module_details:
                                 socket_type = module_details.get('module_socket_type', 'N/A')
-                                # Use only the first letter of the socket type
                                 socket_type_initial = socket_type[0] if socket_type != 'N/A' else 'N/A'
                                 message += f"   {module_details['module_name']} ({module_level})({socket_type_initial})\n"
 
