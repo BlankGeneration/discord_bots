@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: kudos
-        image: blankgen/kudos:latest
+        image: DOCKERHUBUSERNAME/image:latest
         env:
         - name: DB_HOST
           value: mysql
