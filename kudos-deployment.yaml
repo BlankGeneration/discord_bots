@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kudos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kudos
+  template:
+    metadata:
+      labels:
+        app: kudos
+    spec:
+      containers:
+      - name: kudos
+        image: DOCKERHUBUSERNAME/image:latest
+        env:
+        - name: DB_HOST
+          value: mysql
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_DATABASE
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_USER
+        - name: DB_USER_PASS
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: MYSQL_PASSWORD
+        - name: DISCORD_BOT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: discord-secret
+              key: DISCORD_BOT_SECRET
+      imagePullSecrets:
+      - name: my-dockerhub-secret
