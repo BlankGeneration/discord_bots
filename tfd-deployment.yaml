@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tfd-discord-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tfd-discord-bot
+  template:
+    metadata:
+      labels:
+        app: tfd-discord-bot
+    spec:
+      imagePullSecrets:
+      - name: my-dockerhub-secret
+      containers:
+      - name: tfd-discord-bot
+        image: blankgen/tfd-discord-bot:latest
+        env:
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: tfd-discord-secrets
+              key: API_KEY
+        - name: DISCORD_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: tfd-discord-secrets
+              key: DISCORD_TOKEN
